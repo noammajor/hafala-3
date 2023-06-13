@@ -13,10 +13,11 @@ typedef struct QueueTasks
     int sizeWaiting;
     int sizeUsed;
     int maxTasks;
+    int dynamicMax;
     enum schedalg typeOfOperation;
-}QueueTasks;
-pthread_t* ThreadPool;
+} QueueTasks;
 
+pthread_t* ThreadPool;
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 
@@ -29,10 +30,6 @@ void submitTask(Task task,struct QueueTasks Queue) {
             remove_Queue(Queue,1);
             Add_Queue(Queue,task);
         }
-        else if(Queue.typeOfOperation==dynamic || Queue.typeOfOperation==dt)
-        {
-            close(task.confd);
-        }
         else if(Queue.typeOfOperation==randout)
         {
             srand(time(NULL));
@@ -44,12 +41,17 @@ void submitTask(Task task,struct QueueTasks Queue) {
             }
             Add_Queue(Queue,task);
         }
+        else // dynamic or dt
+        {
+            close(task.confd);
+        }
     }
-    taskQueue[taskCount] = task;
-    taskCount++;
+    taskQueue[Queue.sizeWaiting] = task;
+    Queue.sizeWaiting++;
     pthread_mutex_unlock(&mutexQueue);
     pthread_cond_signal(&condQueue);
 }
+
 void* startThread(void* args) {
     while (1) {
         Task task;
@@ -59,8 +61,7 @@ void* startThread(void* args) {
         }
 
         task = taskQueue[0];
-        int i;
-        for (i = 0; i < taskCount - 1; i++) {
+        for (int i = 0; i < taskCount - 1; i++) {
             taskQueue[i] = taskQueue[i + 1];
         }
         taskCount--;
@@ -82,7 +83,7 @@ void* startThread(void* args) {
 //
 
 // HW3: Parse the new arguments too
-void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue,pthread_t* pool)
+void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue)
 {
     if (argc < 2) {
 	fprintf(stderr, "Usage: %s <port>\n", argv[0]);
@@ -90,7 +91,7 @@ void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue,pth
     }
     *port = atoi(argv[1]);
     int size = atoi(argv[2]);
-    pool = malloc(sizeof(pthread_t)*size);
+    ThreadPool = malloc(sizeof(pthread_t)*size);
     for (int i = 0; i < size; ++i)
     {
         if (pthread_create(&pool[i], NULL, &startThread, NULL) != 0) {
@@ -124,19 +125,45 @@ void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue,pth
             fprintf(stderr,"error - wrong arg");
             exit(0);
     }
+    TasksQueue->dynamicMax = 0;
+    if (argc > 5) {
+        TasksQueue->dynamicMax = TasksQueue->maxTasks;
+        TasksQueue->maxTasks = atoi(argv[5]);;
+    }
+    TasksQueue->sizeWaiting = 0;
+    TasksQueue->sizeUsed = 0;
 }
 
 
 int main(int argc, char *argv[])
 {
-    int listenfd, connfd, port, clientlen;
+    int listenfd, connfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
 
-    getargs(&port, argc, argv);
+    struct QueueTasks* TasksQueue;
+    getargs(&port, argc, argv, TasksQueue);
 
-    // 
-    // HW3: Create some threads...
-    //
+    pthread_mutex_lock(&mutexQueue);
+    numRunning = TasksQueue->sizeUsed;
+    numWaiting = TasksQueue->sizeWaiting;
+    max = TasksQueue->maxTasks;
+    if (TasksQueue->typeOfOperation == block)
+    {
+
+    }
+    else if (TasksQueue->typeOfOperation == bf)
+    {
+
+    }
+    else if (TasksQueue->typeOfOperation == dynamic)
+    {
+
+    }
+    else
+    {
+
+    }
+
 
     listenfd = Open_listenfd(port);
     while (1) {
