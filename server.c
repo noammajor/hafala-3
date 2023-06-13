@@ -21,13 +21,28 @@ pthread_t* ThreadPool;
 pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;
 
+void Add_Queue(struct QueueTasks* queue)
+{
+    queue->QueueWaiting[queue.sizeWaiting];
+    queue->sizeWaiting++;
+}
+void remove_Queue(struct QueueTasks* queue,int pos)
+{
+    for (i = pos; i < queue->sizeWaiting; i++) {
+        queue->QueueWaiting[i] = queue->QueueWaiting[i + 1];
+    }
+    queue->QueueWaiting[queue->sizeWaiting-1]=NULL;
+    queue->sizeWaiting--;
+}
+
+
 void submitTask(Task task,struct QueueTasks Queue) {
     pthread_mutex_lock(&mutexQueue);
     if(Queue.sizeUsed+Queue.sizeWaiting>Queue.maxTasks)
     {
         if(Queue.typeOfOperation==dh)
         {
-            remove_Queue(Queue,1);
+            remove_Queue(Queue,0);
             Add_Queue(Queue,task);
         }
         else if(Queue.typeOfOperation==randout)
