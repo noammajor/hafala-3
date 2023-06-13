@@ -1,6 +1,43 @@
 #include "segel.h"
 #include "request.h"
 
+typedef struct Task {
+    int confd;
+} Task;
+
+enum schedalg {block,dt,dh,bf,dynamic, randout }
+typedef struct QueueTasks
+{
+    Task* QueueWaiting;
+    Task* QueueUsed;
+    int sizeWaiting;
+    int sizeUsed;
+    int maxTasks;
+    enum schedalg typeOfOperation;
+}QueueTasks;
+
+pthread_mutex_t mutexQueue;
+pthread_cond_t condQueue;
+
+void submitTask(Task task,struct QueueTasks Queue) {
+    pthread_mutex_lock(&mutexQueue);
+    if(Queue.sizeUsed+Queue.sizeWaiting>Queue.maxTasks)
+    {
+
+
+
+
+
+    }
+    taskQueue[taskCount] = task;
+    taskCount++;
+    pthread_mutex_unlock(&mutexQueue);
+    pthread_cond_signal(&condQueue);
+}
+
+
+
+
 // 
 // server.c: A very, very simple web server
 //
@@ -12,13 +49,16 @@
 //
 
 // HW3: Parse the new arguments too
-void getargs(int *port, int argc, char *argv[])
+void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue)
 {
     if (argc < 2) {
 	fprintf(stderr, "Usage: %s <port>\n", argv[0]);
 	exit(1);
     }
     *port = atoi(argv[1]);
+    TasksQueue->maxTasks = atoi(argv[3]);
+    TasksQueue->QueueUsed = malloc(sizeof (Task)*TasksQueue->maxTasks);
+    TasksQueue->QueueWaiting = malloc(sizeof (Task)*TasksQueue->maxTasks);
 }
 
 
