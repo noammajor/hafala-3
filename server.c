@@ -2,66 +2,70 @@
 #include "request.h"
 
 typedef struct Task {
-    int confd;
+    int taskFd;
 } Task;
 
 enum schedalg {block,dt,dh,bf,dynamic, randout };
+
 typedef struct QueueTasks
 {
     Task* QueueWaiting;
-    Task* QueueUsed;
+    Task* QueueRunning;
     int sizeWaiting;
-    int sizeUsed;
+    int sizeRunning;
     int maxTasks;
-    int dynamicMax;
+    int dynamicMax; // current max, the maxTasks is the final max
     enum schedalg typeOfOperation;
 } QueueTasks;
 
+QueueTasks queueTasks;
 pthread_t* ThreadPool;
 pthread_mutex_t mutexQueue;
-pthread_cond_t condQueue;
+pthread_cond_t condQueue;   // if the first task arrived
+pthread_cond_t condListen;      // if receiving new tasks is allowed
 
-void Add_Queue(struct QueueTasks* queue)
+void Add_Task(Task task)
 {
-    queue->QueueWaiting[queue.sizeWaiting];
-    queue->sizeWaiting++;
+    queueTasks->QueueWaiting[queueTasks.sizeWaiting] = task;
+    queueTasks->sizeWaiting++;
 }
-void remove_Queue(struct QueueTasks* queue,int pos)
+
+void remove_Queue(int pos)
 {
-    for (i = pos; i < queue->sizeWaiting; i++) {
-        queue->QueueWaiting[i] = queue->QueueWaiting[i + 1];
+    for ( ; pos < queueTasks->sizeWaiting-1 ; pos++) {
+        queueTasks->QueueWaiting[pos] = queueTasks->QueueWaiting[pos + 1];
     }
-    queue->QueueWaiting[queue->sizeWaiting-1]=NULL;
+    queueTasks->QueueWaiting[queueTasks->sizeWaiting - 1] = NULL;
     queue->sizeWaiting--;
 }
 
 
-void submitTask(Task task,struct QueueTasks Queue) {
+void submitTask(Task task) {
     pthread_mutex_lock(&mutexQueue);
-    if(Queue.sizeUsed+Queue.sizeWaiting>Queue.maxTasks)
+    if(queueTasks.sizeRunning + queueTasks.sizeWaiting > queueTasks.maxTasks)
     {
-        if(Queue.typeOfOperation==dh)
+        if(queueTasks.typeOfOperation == dh)
         {
-            remove_Queue(Queue,0);
-            Add_Queue(Queue,task);
+            remove_Queue(0);
+            Add_Task(task);
         }
-        else if(Queue.typeOfOperation==randout)
+        else if(queueTasks.typeOfOperation == randout)
         {
             srand(time(NULL));
-            int num = Queue.sizeWaiting/2;
-            for (int i = 0; i < num; ++i)
+            int num = queueTasks.sizeWaiting/2;
+            for (int i = 0 ; i < num; ++i)
             {
-                int randomNumber = rand() % Queue.maxTasks;
-                remove_Queue(Queue,randomNumber);
+                int randomNumber = rand() % (queueTasks.maxTasks - i);
+                remove_Queue(randomNumber);
             }
-            Add_Queue(Queue,task);
+            Add_Task(task);
         }
         else // dynamic or dt
         {
-            close(task.confd);
+            close(task.taskFd);
         }
     }
-    taskQueue[Queue.sizeWaiting] = task;
+    queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
     Queue.sizeWaiting++;
     pthread_mutex_unlock(&mutexQueue);
     pthread_cond_signal(&condQueue);
@@ -71,17 +75,25 @@ void* startThread(void* args) {
     while (1) {
         Task task;
         pthread_mutex_lock(&mutexQueue);
-        while (taskCount == 0) {
+        while (queueTasks.sizeWaiting == 0) {
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
 
-        task = taskQueue[0];
-        for (int i = 0; i < taskCount - 1; i++) {
-            taskQueue[i] = taskQueue[i + 1];
+        task = queueTasks.QueueWaiting[0];
+        for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
+            queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
-        taskCount--;
+        queueTasks.QueueRunning[queueTasks.sizeRunning] = task;
+        queueTasks.sizeWaiting--;
+        queueTasks.sizeRunning++;
+        if (queueTasks.sizeWaiting + queueTasks.sizeRunning < queueTasks.maxTasks) {
+            if (queueTasks.typeOfOperation == block ||
+                (queueTasks.typeOfOperation == bf && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0)
+                    pthread_cond_signal(&condListen);
+        }
         pthread_mutex_unlock(&mutexQueue);
-        executeTask(&task);
+        requestHandle(task.taskFd);
+        Close(task.taskFd);
     }
 }
 
@@ -98,7 +110,7 @@ void* startThread(void* args) {
 //
 
 // HW3: Parse the new arguments too
-void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue)
+void getargs(int *port, int argc, char *argv[])
 {
     if (argc < 2) {
 	fprintf(stderr, "Usage: %s <port>\n", argv[0]);
@@ -113,40 +125,40 @@ void getargs(int *port, int argc, char *argv[],struct QueueTasks* TasksQueue)
             perror("Failed to create the thread");
         }
     }
-    TasksQueue->maxTasks = atoi(argv[3]);
-    TasksQueue->QueueUsed = malloc(sizeof (Task)*TasksQueue->maxTasks);
-    TasksQueue->QueueWaiting = malloc(sizeof (Task)*TasksQueue->maxTasks);
+    queueTasks.maxTasks = atoi(argv[3]);
+    queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);
+    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
     switch (argv[4])
     {
         case "block":
-            TasksQueue->typeOfOperation=block;
+            queueTasks.typeOfOperation = block;
             break;
         case "dt":
-            TasksQueue->typeOfOperation=dt;
+            queueTasks.typeOfOperation = dt;
             break;
         case "dh":
-            TasksQueue->typeOfOperation=dh;
+            queueTasks.typeOfOperation = dh;
             break;
         case "bf":
-            TasksQueue->typeOfOperation=bf;
+            queueTasks.typeOfOperation = bf;
             break;
         case "dynamic":
-            TasksQueue->typeOfOperation=dynamic;
+            queueTasks.typeOfOperation = dynamic;
             break;
         case "random":
-            TasksQueue->typeOfOperation=randout;
+            queueTasks.typeOfOperation = randout;
             break;
         default:
             fprintf(stderr,"error - wrong arg");
             exit(0);
     }
-    TasksQueue->dynamicMax = 0;
+    queueTasks.dynamicMax = 0;
     if (argc > 5) {
-        TasksQueue->dynamicMax = TasksQueue->maxTasks;
-        TasksQueue->maxTasks = atoi(argv[5]);;
+        queueTasks.dynamicMax = queueTasks.maxTasks;
+        queueTasks.maxTasks = atoi(argv[5]);;
     }
-    TasksQueue->sizeWaiting = 0;
-    TasksQueue->sizeUsed = 0;
+    queueTasks.sizeWaiting = 0;
+    queueTasks.sizeRunning = 0;
 }
 
 
@@ -155,44 +167,41 @@ int main(int argc, char *argv[])
     int listenfd, connfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
 
-    struct QueueTasks* TasksQueue;
-    getargs(&port, argc, argv, TasksQueue);
+    getargs(&port, argc, argv);
 
     pthread_mutex_lock(&mutexQueue);
-    numRunning = TasksQueue->sizeUsed;
-    numWaiting = TasksQueue->sizeWaiting;
-    max = TasksQueue->maxTasks;
-    if (TasksQueue->typeOfOperation == block)
-    {
-
-    }
-    else if (TasksQueue->typeOfOperation == bf)
-    {
-
-    }
-    else if (TasksQueue->typeOfOperation == dynamic)
-    {
-
-    }
-    else
-    {
-
-    }
+    numRunning = queueTasks.sizeRunning;
+    numWaiting = queueTasks.sizeWaiting;
+    max = queueTasks.maxTasks;
 
 
-    listenfd = Open_listenfd(port);
     while (1) {
-	clientlen = sizeof(clientaddr);
-	connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
+        listenfd = Open_listenfd(port);
+        if (queueTasks.typeOfOperation == dynamic && numWaiting + numRunning < max && numWaiting + numRunning == queueTasks.dynamicMax)
+        {    // more than original count but less than allowed dynamically
+            queueTasks.dynamicMax++;
+            listenfd = Open_listenfd(port);
+        }
+        else  if (queueTasks.typeOfOperation == block || queueTasks.typeOfOperation == bf) {
+            if (numWaiting + numRunning == max)
+                pthread_cond_wait(&condListen, &mutexQueue);
+            if (queueTasks.typeOfOperation == bf)
+                listenfd = Open_listenfd(port);
+        }
 
-	// 
-	// HW3: In general, don't handle the request in the main thread.
-	// Save the relevant info in a buffer and have one of the worker threads 
-	// do the work. 
-	// 
-	requestHandle(connfd);
+        clientlen = sizeof(clientaddr);
+        connfd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+        Task task (connfd);
+        submitTask(task);
+            //
+            // HW3: In general, don't handle the request in the main thread.
+            // Save the relevant info in a buffer and have one of the worker threads
+            // do the work.
+            //
 
-	Close(connfd);
+            //requestHandle(connfd);
+            //Close(connfd);
+        }
     }
 
 }
