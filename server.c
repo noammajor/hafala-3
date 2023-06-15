@@ -5,7 +5,6 @@ typedef struct Task {
     int taskFd;
 } Task;
 
-enum schedalg {block,dt,dh,bf,dynamic, randout };
 
 typedef struct QueueTasks
 {
@@ -15,7 +14,7 @@ typedef struct QueueTasks
     int sizeRunning;
     int maxTasks;
     int dynamicMax; // current max, the maxTasks is the final max
-    enum schedalg typeOfOperation;
+    char* typeOfOperation;
 } QueueTasks;
 
 QueueTasks queueTasks;
@@ -26,30 +25,29 @@ pthread_cond_t condListen;      // if receiving new tasks is allowed
 
 void Add_Task(Task task)
 {
-    queueTasks->QueueWaiting[queueTasks.sizeWaiting] = task;
-    queueTasks->sizeWaiting++;
+    queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
+    queueTasks.sizeWaiting++;
 }
 
 void remove_Queue(int pos)
 {
-    for ( ; pos < queueTasks->sizeWaiting-1 ; pos++) {
-        queueTasks->QueueWaiting[pos] = queueTasks->QueueWaiting[pos + 1];
+    for ( ; pos < queueTasks.sizeWaiting-1 ; pos++) {
+        queueTasks.QueueWaiting[pos] = queueTasks.QueueWaiting[pos + 1];
     }
-    queueTasks->QueueWaiting[queueTasks->sizeWaiting - 1] = NULL;
-    queue->sizeWaiting--;
+    queueTasks.sizeWaiting--;
 }
 
 
 void submitTask(Task task) {
     pthread_mutex_lock(&mutexQueue);
-    if(queueTasks.sizeRunning + queueTasks.sizeWaiting > queueTasks.maxTasks)
+    if(queueTasks.sizeRunning + queueTasks.sizeWaiting == queueTasks.maxTasks)
     {
-        if(queueTasks.typeOfOperation == dh)
+        if(strcmp(queueTasks.typeOfOperation, "dh") == 0)
         {
             remove_Queue(0);
             Add_Task(task);
         }
-        else if(queueTasks.typeOfOperation == randout)
+        else if(strcmp(queueTasks.typeOfOperation, "randout") == 0)
         {
             srand(time(NULL));
             int num = queueTasks.sizeWaiting/2;
@@ -66,7 +64,7 @@ void submitTask(Task task) {
         }
     }
     queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
-    Queue.sizeWaiting++;
+    queueTasks.sizeWaiting++;
     pthread_mutex_unlock(&mutexQueue);
     pthread_cond_signal(&condQueue);
 }
@@ -75,7 +73,7 @@ void* startThread(void* args) {
     while (1) {
         Task task;
         pthread_mutex_lock(&mutexQueue);
-        while (queueTasks.sizeWaiting == 0) {
+        if (queueTasks.sizeWaiting == 0) {
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
 
@@ -86,14 +84,21 @@ void* startThread(void* args) {
         queueTasks.QueueRunning[queueTasks.sizeRunning] = task;
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
-        if (queueTasks.sizeWaiting + queueTasks.sizeRunning < queueTasks.maxTasks) {
-            if (queueTasks.typeOfOperation == block ||
-                (queueTasks.typeOfOperation == bf && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0)
-                    pthread_cond_signal(&condListen);
-        }
         pthread_mutex_unlock(&mutexQueue);
         requestHandle(task.taskFd);
         Close(task.taskFd);
+
+        pthread_mutex_lock(&mutexQueue);
+        int i = 0;
+        while (queueTasks.QueueRunning[i].taskFd != task.taskFd)
+            i++;
+        for ( ; i < queueTasks.sizeRunning - 1 ; i++)
+            queueTasks.QueueRunning[i] = queueTasks.QueueRunning[i + 1];
+        queueTasks.sizeRunning--;
+        if (strcmp(queueTasks.typeOfOperation, "block") == 0 ||
+            (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0))
+                    pthread_cond_signal(&condListen);
+        pthread_mutex_unlock(&mutexQueue);
     }
 }
 
@@ -121,37 +126,14 @@ void getargs(int *port, int argc, char *argv[])
     ThreadPool = malloc(sizeof(pthread_t)*size);
     for (int i = 0; i < size; ++i)
     {
-        if (pthread_create(&pool[i], NULL, &startThread, NULL) != 0) {
+        if (pthread_create(&ThreadPool[i], NULL, &startThread, NULL) != 0) {
             perror("Failed to create the thread");
         }
     }
     queueTasks.maxTasks = atoi(argv[3]);
     queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
-    switch (argv[4])
-    {
-        case "block":
-            queueTasks.typeOfOperation = block;
-            break;
-        case "dt":
-            queueTasks.typeOfOperation = dt;
-            break;
-        case "dh":
-            queueTasks.typeOfOperation = dh;
-            break;
-        case "bf":
-            queueTasks.typeOfOperation = bf;
-            break;
-        case "dynamic":
-            queueTasks.typeOfOperation = dynamic;
-            break;
-        case "random":
-            queueTasks.typeOfOperation = randout;
-            break;
-        default:
-            fprintf(stderr,"error - wrong arg");
-            exit(0);
-    }
+    queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
     if (argc > 5) {
         queueTasks.dynamicMax = queueTasks.maxTasks;
@@ -162,48 +144,55 @@ void getargs(int *port, int argc, char *argv[])
 }
 
 
-int main(int argc, char *argv[])
-{
-    int listenfd, connfd, port, clientlen, numRunning, numWaiting, max;
+int main(int argc, char *argv[]) {
+    int listenfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
 
     getargs(&port, argc, argv);
 
-    pthread_mutex_lock(&mutexQueue);
-    numRunning = queueTasks.sizeRunning;
-    numWaiting = queueTasks.sizeWaiting;
-    max = queueTasks.maxTasks;
-
-
     while (1) {
+        pthread_mutex_lock(&mutexQueue);
+        numRunning = queueTasks.sizeRunning;
+        numWaiting = queueTasks.sizeWaiting;
+        max = queueTasks.maxTasks;
+
         listenfd = Open_listenfd(port);
-        if (queueTasks.typeOfOperation == dynamic && numWaiting + numRunning < max && numWaiting + numRunning == queueTasks.dynamicMax)
+        if (strcmp(queueTasks.typeOfOperation, "dynamic") == 0 && numWaiting + numRunning < max
+            && numWaiting + numRunning == queueTasks.dynamicMax)
         {    // more than original count but less than allowed dynamically
             queueTasks.dynamicMax++;
+            pthread_mutex_unlock(&mutexQueue);
             listenfd = Open_listenfd(port);
         }
-        else  if (queueTasks.typeOfOperation == block || queueTasks.typeOfOperation == bf) {
+        else if (strcmp(queueTasks.typeOfOperation, "block") == 0 || strcmp(queueTasks.typeOfOperation, "bf") == 0)
+        {
             if (numWaiting + numRunning == max)
+            {
                 pthread_cond_wait(&condListen, &mutexQueue);
-            if (queueTasks.typeOfOperation == bf)
-                listenfd = Open_listenfd(port);
+                pthread_mutex_unlock(&mutexQueue);
+                if (strcmp(queueTasks.typeOfOperation, "bf") == 0)
+                    listenfd = Open_listenfd(port);
+            }
         }
+        else        //can add the task
+            pthread_mutex_unlock(&mutexQueue);
 
         clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
-        Task task (connfd);
+        Task task;
+        task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         submitTask(task);
-            //
-            // HW3: In general, don't handle the request in the main thread.
-            // Save the relevant info in a buffer and have one of the worker threads
-            // do the work.
-            //
-
-            //requestHandle(connfd);
-            //Close(connfd);
-        }
     }
 
+    // clean before exit main
+    for (int i = 0 ; i < atoi(argv[2]) ; i++) {
+        if (pthread_join(ThreadPool[i], NULL) != 0) {
+            perror("Failed to join threads");
+        }
+    }
+    pthread_mutex_destroy(&mutexQueue);
+    pthread_cond_destroy(&condQueue);
+    pthread_cond_destroy(&condListen);
+    return 0;
 }
 
 
