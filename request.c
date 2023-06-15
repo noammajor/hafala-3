@@ -152,9 +152,8 @@ void requestServeStatic(int fd, char *filename, int filesize)
 }
 
 // handle a request
-void requestHandle(int fd)
+void requestHandle(int fd,int* index, struct Statistics stats)
 {
-
    int is_static;
    struct stat sbuf;
    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
@@ -184,12 +183,16 @@ void requestHandle(int fd)
          requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not read this file");
          return;
       }
+      stats.StatitRequests[*index]++;
+      stats.Requests[*index]++;
       requestServeStatic(fd, filename, sbuf.st_size);
    } else {
       if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
          requestError(fd, filename, "403", "Forbidden", "OS-HW3 Server could not run this CGI program");
          return;
       }
+      stats.Requests[*index]++;
+      stats.DynamicRequests[*index]++;
       requestServeDynamic(fd, filename, cgiargs);
    }
 }
