@@ -147,9 +147,9 @@ void getargs(int *port, int argc, char *argv[])
         statsThreads.DynamicRequests[i] = 0;
         statsThreads.StatitRequests[i]= 0;
         statsThreads.Requests[i] = 0;
-    }
-    queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);
-    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
+   }
+    queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);
+    queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
     if (argc > 5) {
@@ -166,7 +166,9 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in clientaddr;
 
     getargs(&port, argc, argv);
-
+    pthread_mutex_init(mutexQueue&, NULL);
+    pthread_cond_init(&condQueue, NULL);
+    pthread_cond_init(&condListen, NULL);
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         numRunning = queueTasks.sizeRunning;
