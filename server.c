@@ -8,8 +8,8 @@ typedef struct Task {
 
 typedef struct QueueTasks
 {
-    Task* QueueWaiting;
-    Task* QueueRunning;
+    Task** QueueWaiting;
+    Task** QueueRunning;
     int sizeWaiting;
     int sizeRunning;
     int maxTasks;
@@ -23,7 +23,7 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;   // if the first task arrived
 pthread_cond_t condListen;      // if receiving new tasks is allowed
 
-void Add_Task(Task task)
+void Add_Task(Task* task)
 {
     queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
     queueTasks.sizeWaiting++;
@@ -38,7 +38,7 @@ void remove_Queue(int pos)
 }
 
 
-void submitTask(Task task) {
+void submitTask(Task* task) {
     pthread_mutex_lock(&mutexQueue);
     if(queueTasks.sizeRunning + queueTasks.sizeWaiting == queueTasks.maxTasks)
     {
@@ -60,7 +60,7 @@ void submitTask(Task task) {
         }
         else // dynamic or dt
         {
-            close(task.taskFd);
+            close(task->taskFd);
         }
     }
     queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
@@ -71,13 +71,12 @@ void submitTask(Task task) {
 
 void* startThread(void* args) {
     while (1) {
-        Task task;
         pthread_mutex_lock(&mutexQueue);
         if (queueTasks.sizeWaiting == 0) {
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
 
-        task = queueTasks.QueueWaiting[0];
+        Task* task = queueTasks.QueueWaiting[0];
         for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
             queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
@@ -85,12 +84,12 @@ void* startThread(void* args) {
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
-        requestHandle(task.taskFd);
-        Close(task.taskFd);
+        requestHandle(task->taskFd);
+        Close(task->taskFd);
 
         pthread_mutex_lock(&mutexQueue);
         int i = 0;
-        while (queueTasks.QueueRunning[i].taskFd != task.taskFd)
+        while (queueTasks.QueueRunning[i]->taskFd != task->taskFd)      //search the task  in the running queue
             i++;
         for ( ; i < queueTasks.sizeRunning - 1 ; i++)
             queueTasks.QueueRunning[i] = queueTasks.QueueRunning[i + 1];
@@ -99,6 +98,7 @@ void* startThread(void* args) {
             (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0))
                     pthread_cond_signal(&condListen);
         pthread_mutex_unlock(&mutexQueue);
+        free(task);
     }
 }
 
@@ -178,8 +178,8 @@ int main(int argc, char *argv[]) {
             pthread_mutex_unlock(&mutexQueue);
 
         clientlen = sizeof(clientaddr);
-        Task task;
-        task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+        Task* task = malloc(sizeof(task));
+        task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         submitTask(task);
     }
 
