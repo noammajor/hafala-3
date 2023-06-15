@@ -32,7 +32,14 @@
 /* $end createmasks */
  struct Task;
  struct QueueTasks;
- struct Statistics;
+
+typedef struct Statistics
+{
+    int* Requests;
+    int* DynamicRequests;
+    int* StatitRequests;
+}Statistics;
+
 /* Simplifies calls to bind(), connect(), and accept() */
 /* $begin sockaddrdef */
 typedef struct sockaddr SA;
