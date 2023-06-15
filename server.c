@@ -10,8 +10,8 @@ typedef struct Task {
 
 typedef struct QueueTasks
 {
-    Task** QueueWaiting;
-    Task** QueueRunning;
+    Task* QueueWaiting;
+    Task* QueueRunning;
     int sizeWaiting;
     int sizeRunning;
     int maxTasks;
@@ -27,7 +27,7 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;   // if the first task arrived
 pthread_cond_t condListen;      // if receiving new tasks is allowed
 
-void Add_Task(Task* task)
+void Add_Task(Task task)
 {
     queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
     queueTasks.sizeWaiting++;
@@ -42,7 +42,7 @@ void remove_Queue(int pos)
 }
 
 
-void submitTask(Task* task) {
+void submitTask(Task task) {
     pthread_mutex_lock(&mutexQueue);
     if(queueTasks.sizeRunning + queueTasks.sizeWaiting == queueTasks.maxTasks)
     {
@@ -64,7 +64,7 @@ void submitTask(Task* task) {
         }
         else // dynamic or dt
         {
-            close(task->taskFd);
+            close(task.taskFd);
         }
     }
     queueTasks.QueueWaiting[queueTasks.sizeWaiting] = task;
@@ -81,7 +81,7 @@ void* startThread(void* args) {
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
 
-        Task* task = queueTasks.QueueWaiting[0];
+        Task task = queueTasks.QueueWaiting[0];
         for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
             queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
@@ -89,13 +89,13 @@ void* startThread(void* args) {
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
-       // gettimeofday(&task->BeginOperation,NULL);
-        requestHandle(task->taskFd,index,&statsThreads);
-        Close(task->taskFd);
+        gettimeofday(&task.BeginOperation,NULL);
+        requestHandle(task.taskFd,index,&statsThreads);
+        Close(task.taskFd);
 
         pthread_mutex_lock(&mutexQueue);
         int i = 0;
-        while (queueTasks.QueueRunning[i]->taskFd != task->taskFd)      //search the task  in the running queue
+        while (queueTasks.QueueRunning[i].taskFd != task.taskFd)      //search the task  in the running queue
             i++;
         for ( ; i < queueTasks.sizeRunning - 1 ; i++)
             queueTasks.QueueRunning[i] = queueTasks.QueueRunning[i + 1];
@@ -104,7 +104,7 @@ void* startThread(void* args) {
             (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0))
                     pthread_cond_signal(&condListen);
         pthread_mutex_unlock(&mutexQueue);
-        free(task);
+        //free(task);
     }
 }
 
@@ -132,22 +132,24 @@ void getargs(int *port, int argc, char *argv[])
     ThreadPool = malloc(sizeof(pthread_t*)*size);
     for (int i = 0; i < size; ++i)
     {
-        if (pthread_create(ThreadPool[i], NULL, &startThread, &i) != 0) {
+        int* num = malloc(sizeof(int));
+        *num = i;
+        if (pthread_create(ThreadPool[i], NULL, &startThread, num) != 0) {
             perror("Failed to create the thread");
         }
     }
     queueTasks.maxTasks = atoi(argv[3]);
- //   statsThreads.DynamicRequests = malloc(sizeof(int)*size);
- //   statsThreads.StatitRequests = malloc(sizeof(int)*size);
- //   statsThreads.Requests = malloc(sizeof(int)*size);
- //   for (int i = 0 ; i < size ; i++)
- //   {
- //       statsThreads.DynamicRequests[i] = 0;
- //       statsThreads.StatitRequests[i]= 0;
-  //      statsThreads.Requests[i] = 0;
-  //  }
-    queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);
-    queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
+    statsThreads.DynamicRequests = malloc(sizeof(int)*size);
+    statsThreads.StatitRequests = malloc(sizeof(int)*size);
+    statsThreads.Requests = malloc(sizeof(int)*size);
+    for (int i = 0 ; i < size ; i++)
+    {
+        statsThreads.DynamicRequests[i] = 0;
+        statsThreads.StatitRequests[i]= 0;
+        statsThreads.Requests[i] = 0;
+    }
+    queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);
+    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
     if (argc > 5) {
@@ -162,7 +164,9 @@ void getargs(int *port, int argc, char *argv[])
 int main(int argc, char *argv[]) {
     int listenfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
+
     getargs(&port, argc, argv);
+
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         numRunning = queueTasks.sizeRunning;
@@ -194,7 +198,7 @@ int main(int argc, char *argv[]) {
         Task* task = malloc(sizeof(Task));
         task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         gettimeofday(&task->arrival,NULL);
-        submitTask(task);
+        submitTask(*task);
     }
 
     // clean before exit main
