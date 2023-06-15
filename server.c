@@ -147,7 +147,7 @@ void getargs(int *port, int argc, char *argv[])
         statsThreads.Requests[i] = 0;
     }
     queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);
-    queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
+    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
     if (argc > 5) {
@@ -163,11 +163,8 @@ int main(int argc, char *argv[]) {
     int listenfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
 
-    //getargs(&port, argc, argv);
-    int a;
-    while (1) {
-      a=1;
-    }
+    getargs(&port, argc, argv);
+
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         numRunning = queueTasks.sizeRunning;
@@ -196,7 +193,7 @@ int main(int argc, char *argv[]) {
             pthread_mutex_unlock(&mutexQueue);
 
         clientlen = sizeof(clientaddr);
-        Task* task = malloc(sizeof(task));
+        Task* task = malloc(sizeof(Task));
         task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         gettimeofday(&task->arrival,NULL);
         submitTask(task);
