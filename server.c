@@ -3,6 +3,8 @@
 
 typedef struct Task {
     int taskFd;
+    struct timeval arrival;
+    struct timeval BeginOperation;
 } Task;
 
 
@@ -17,6 +19,14 @@ typedef struct QueueTasks
     char* typeOfOperation;
 } QueueTasks;
 
+typedef struct Statistics
+{
+    int* Requests;
+    int* DynamicRequests;
+    int* StatitRequests;
+}Statistics;
+
+Statistics statsThreads;
 QueueTasks queueTasks;
 pthread_t* ThreadPool;
 pthread_mutex_t mutexQueue;
@@ -70,6 +80,7 @@ void submitTask(Task* task) {
 }
 
 void* startThread(void* args) {
+    int* index = (int*)args;
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         if (queueTasks.sizeWaiting == 0) {
@@ -84,7 +95,8 @@ void* startThread(void* args) {
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
-        requestHandle(task->taskFd);
+        gettimeofday(task->BeginOperation,NULL);
+        requestHandle(task->taskFd,index,&statsThreads);
         Close(task->taskFd);
 
         pthread_mutex_lock(&mutexQueue);
@@ -126,11 +138,14 @@ void getargs(int *port, int argc, char *argv[])
     ThreadPool = malloc(sizeof(pthread_t)*size);
     for (int i = 0; i < size; ++i)
     {
-        if (pthread_create(&ThreadPool[i], NULL, &startThread, NULL) != 0) {
+        if (pthread_create(&ThreadPool[i], NULL, &startThread, &i) != 0) {
             perror("Failed to create the thread");
         }
     }
     queueTasks.maxTasks = atoi(argv[3]);
+    statsThreads.DynamicRequests = malloc(sizeof(int)*size);
+    statsThreads.StatitRequests = malloc(sizeof(int)*size);
+    statsThreads.Requests = malloc(sizeof(int)*size);
     queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
@@ -180,6 +195,7 @@ int main(int argc, char *argv[]) {
         clientlen = sizeof(clientaddr);
         Task* task = malloc(sizeof(task));
         task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+        gettimeofday(task->arrival,NULL);
         submitTask(task);
     }
 
