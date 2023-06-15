@@ -89,7 +89,7 @@ void* startThread(void* args) {
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
-        gettimeofday(&task->BeginOperation,NULL);
+       // gettimeofday(&task->BeginOperation,NULL);
         requestHandle(task->taskFd,index,&statsThreads);
         Close(task->taskFd);
 
@@ -137,17 +137,17 @@ void getargs(int *port, int argc, char *argv[])
         }
     }
     queueTasks.maxTasks = atoi(argv[3]);
-    statsThreads.DynamicRequests = malloc(sizeof(int)*size);
-    statsThreads.StatitRequests = malloc(sizeof(int)*size);
-    statsThreads.Requests = malloc(sizeof(int)*size);
-    for (int i = 0 ; i < size ; i++)
-    {
-        statsThreads.DynamicRequests[i] = 0;
-        statsThreads.StatitRequests[i]= 0;
-        statsThreads.Requests[i] = 0;
-    }
+ //   statsThreads.DynamicRequests = malloc(sizeof(int)*size);
+ //   statsThreads.StatitRequests = malloc(sizeof(int)*size);
+ //   statsThreads.Requests = malloc(sizeof(int)*size);
+ //   for (int i = 0 ; i < size ; i++)
+ //   {
+ //       statsThreads.DynamicRequests[i] = 0;
+ //       statsThreads.StatitRequests[i]= 0;
+  //      statsThreads.Requests[i] = 0;
+  //  }
     queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);
-    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
+    queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
     if (argc > 5) {
@@ -162,9 +162,7 @@ void getargs(int *port, int argc, char *argv[])
 int main(int argc, char *argv[]) {
     int listenfd, port, clientlen, numRunning, numWaiting, max;
     struct sockaddr_in clientaddr;
-
     getargs(&port, argc, argv);
-
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         numRunning = queueTasks.sizeRunning;
