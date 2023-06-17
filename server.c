@@ -93,10 +93,13 @@ void* startThread(void* args) {
         requestHandle(task.taskFd);
 
         pthread_mutex_lock(&mutexQueue);
+        close(task.taskFd);
         int i = 0;
         while (queueTasks.QueueRunning[i].taskFd != task.taskFd)      //search the task  in the running queue
             i++;
-        remove_Queue(i);
+        for ( ; i < queueTasks.sizeRunning - 1 ; i++) {
+            queueTasks.QueueRunning[i] = queueTasks.QueueRunning[i + 1];
+        }
         queueTasks.sizeRunning--;
         pthread_mutex_unlock(&mutexQueue);
         if (strcmp(queueTasks.typeOfOperation, "block") == 0 ||
