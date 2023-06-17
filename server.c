@@ -3,8 +3,8 @@
 
 typedef struct Task {
     int taskFd;
-    /*struct timeval arrival;
-    struct timeval BeginOperation;*/
+    struct timeval arrival;
+    struct timeval BeginOperation;
 } Task;
 
 
@@ -20,7 +20,7 @@ typedef struct QueueTasks
 } QueueTasks;
 
 
-//Statistics statsThreads;
+Statistics statsThreads;
 QueueTasks queueTasks;
 pthread_t* ThreadPool;
 pthread_mutex_t mutexQueue;
@@ -74,7 +74,7 @@ void submitTask(Task task) {
 }
 
 void* startThread(void* args) {
-    //int* index = (int*)args;
+    int* index = (int*)args;
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         while (queueTasks.sizeWaiting == 0) {
@@ -89,8 +89,8 @@ void* startThread(void* args) {
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
-        //gettimeofday(&task.BeginOperation,NULL);
-        requestHandle(task.taskFd);
+        gettimeofday(&task.BeginOperation, NULL);
+        requestHandle(task.taskFd, index, &statsThreads);
 
         pthread_mutex_lock(&mutexQueue);
         close(task.taskFd);
@@ -132,22 +132,22 @@ void getargs(int *port, int argc, char *argv[])
     ThreadPool = malloc(sizeof(pthread_t)*size);
     for (int i = 0; i < size; i++)
     {
-        /*int* num = malloc(sizeof(int));
-        *num = i;*/
-        if (pthread_create(&ThreadPool[i], NULL, &startThread, NULL) != 0) {
+        int* num = malloc(sizeof(int));
+        *num = i;
+        if (pthread_create(&ThreadPool[i], NULL, &startThread, num) != 0) {
             perror("Failed to create the thread");
         }
     }
     queueTasks.maxTasks = atoi(argv[3]);
-    /*statsThreads.DynamicRequests = malloc(sizeof(int)*size);
-    statsThreads.StatitRequests = malloc(sizeof(int)*size);
+    statsThreads.DynamicRequests = malloc(sizeof(int)*size);
+    statsThreads.StaticRequests = malloc(sizeof(int)*size);
     statsThreads.Requests = malloc(sizeof(int)*size);
     for (int i = 0 ; i < size ; i++)
     {
         statsThreads.DynamicRequests[i] = 0;
-        statsThreads.StatitRequests[i]= 0;
+        statsThreads.StaticRequests[i]= 0;
         statsThreads.Requests[i] = 0;
-   }*/
+   }
     queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);       ///////////what if maxTask < num of threads?
     queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
         else        //can add the task
             pthread_mutex_unlock(&mutexQueue);
 
-        //gettimeofday(&task->arrival,NULL);
+        gettimeofday(&task.arrival, NULL);
         submitTask(task);
     }
 
