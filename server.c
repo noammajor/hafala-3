@@ -148,7 +148,7 @@ void getargs(int *port, int argc, char *argv[])
         statsThreads.StatitRequests[i]= 0;
         statsThreads.Requests[i] = 0;
    }
-    queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);
+    queueTasks.QueueRunning = malloc(sizeof (Task*)*queueTasks.maxTasks);       ///////////what if maxTask < num of threads?
     queueTasks.QueueWaiting = malloc(sizeof (Task*)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
     queueTasks.dynamicMax = 0;
@@ -166,22 +166,28 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in clientaddr;
 
     getargs(&port, argc, argv);
-    pthread_mutex_init(mutexQueue&, NULL);
+    pthread_mutex_init(&mutexQueue, NULL);
     pthread_cond_init(&condQueue, NULL);
     pthread_cond_init(&condListen, NULL);
+    listenfd = Open_listenfd(port);
+    clientlen = sizeof(clientaddr);
+
     while (1) {
+        Task* task = malloc(sizeof(Task));
+        task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+
         pthread_mutex_lock(&mutexQueue);
         numRunning = queueTasks.sizeRunning;
         numWaiting = queueTasks.sizeWaiting;
         max = queueTasks.maxTasks;
 
-        listenfd = Open_listenfd(port);
         if (strcmp(queueTasks.typeOfOperation, "dynamic") == 0 && numWaiting + numRunning < max
             && numWaiting + numRunning == queueTasks.dynamicMax)
         {    // more than original count but less than allowed dynamically
             queueTasks.dynamicMax++;
             pthread_mutex_unlock(&mutexQueue);
-            listenfd = Open_listenfd(port);
+            close(task->taskFd);
+            task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         }
         else if (strcmp(queueTasks.typeOfOperation, "block") == 0 || strcmp(queueTasks.typeOfOperation, "bf") == 0)
         {
@@ -189,16 +195,15 @@ int main(int argc, char *argv[]) {
             {
                 pthread_cond_wait(&condListen, &mutexQueue);
                 pthread_mutex_unlock(&mutexQueue);
-                if (strcmp(queueTasks.typeOfOperation, "bf") == 0)
-                    listenfd = Open_listenfd(port);
+                if (strcmp(queueTasks.typeOfOperation, "bf") == 0) {
+                    close(task->taskFd);
+                    task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+                }
             }
         }
         else        //can add the task
             pthread_mutex_unlock(&mutexQueue);
 
-        clientlen = sizeof(clientaddr);
-        Task* task = malloc(sizeof(Task));
-        task->taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         gettimeofday(&task->arrival,NULL);
         submitTask(*task);
     }
