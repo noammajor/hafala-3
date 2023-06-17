@@ -33,12 +33,12 @@
  struct Task;
  struct QueueTasks;
 
-typedef struct Statistics
+/*typedef struct Statistics
 {
     int* Requests;
     int* DynamicRequests;
     int* StatitRequests;
-}Statistics;
+}Statistics;*/
 
 /* Simplifies calls to bind(), connect(), and accept() */
 /* $begin sockaddrdef */

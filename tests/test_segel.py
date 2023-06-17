@@ -25,7 +25,7 @@ The tests in this file are based on the description of the tests given by the co
                          ])
 def test_basic(policy, server_port):
     """check if the webserver can serve requests"""
-    with Server("./server", server_port, 1, 1, policy) as server:
+    with Server("./server", server_port, 1, 2, policy) as server:
         sleep(0.1)
         for req in ["output.cgi?1", "favicon.ico", "home.html"]:
             session = FuturesSession()
@@ -45,7 +45,7 @@ def test_basic(policy, server_port):
                          ])
 def test_nobusywait(policy, server_port):
     """test to make sure you are not busy-waiting"""
-    with Server("./server", server_port, 1, 1, policy) as server:
+    with Server("./server", server_port, 1, 2, policy) as server:
         sleep(0.3)
         p = [p for p in psutil.process_iter() if server.pid == p.pid][0]
         assert p.cpu_percent() == 0
