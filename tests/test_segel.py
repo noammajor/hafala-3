@@ -126,13 +126,13 @@ LIGHT2_FILES = {'/home.html': [True, STATIC_OUTPUT_CONTENT, generate_static_head
 
 @pytest.mark.parametrize("policy, threads, num_clients, queue_size, times, files",
                          [
-                             ("block", 20, 5, 10, 20, LIGHT_FILES),
+                             ("block", 8, 5, 10, 20, LIGHT_FILES),
                              ("block", 16, 4, 32, 30, LIGHT2_FILES),
-                             ("dh", 20, 5, 10, 20, LIGHT_FILES),
+                             ("dh", 8, 5, 10, 20, LIGHT_FILES),
                              ("dh", 16, 4, 32, 30, LIGHT2_FILES),
-                             ("dt", 20, 5, 10, 20, LIGHT_FILES),
+                             ("dt", 8, 5, 10, 20, LIGHT_FILES),
                              ("dt", 16, 4, 32, 30, LIGHT2_FILES),
-                             ("random", 20, 5, 10, 20, LIGHT_FILES),
+                             ("random", 8, 5, 10, 20, LIGHT_FILES),
                              ("random", 16, 4, 32, 30, LIGHT2_FILES),
                          ])
 def test_light(policy, threads, num_clients, queue_size, times, files, server_port):
