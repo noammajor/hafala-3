@@ -1,11 +1,6 @@
 #include "segel.h"
 #include "request.h"
 
-typedef struct Task {
-    int taskFd;
-    struct timeval arrival;
-    struct timeval BeginOperation;
-} Task;
 
 
 typedef struct QueueTasks
@@ -90,7 +85,7 @@ void* startThread(void* args) {
         queueTasks.sizeRunning++;
         pthread_mutex_unlock(&mutexQueue);
         gettimeofday(&task.BeginOperation, NULL);
-        requestHandle(task.taskFd, index, &statsThreads);
+        requestHandle(task, index, &statsThreads);
 
         pthread_mutex_lock(&mutexQueue);
         close(task.taskFd);

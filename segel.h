@@ -40,6 +40,12 @@ typedef struct Statistics
     int* StaticRequests;
 }Statistics;
 
+typedef struct Task {
+    int taskFd;
+    struct timeval arrival;
+    struct timeval BeginOperation;
+} Task;
+
 /* Simplifies calls to bind(), connect(), and accept() */
 /* $begin sockaddrdef */
 typedef struct sockaddr SA;
