@@ -71,6 +71,7 @@ void submitTask(Task task) {
         listenSignal = 0;
     queueSignal = 1;
     pthread_mutex_unlock(&mutexQueue);
+
     pthread_cond_signal(&condQueue);
     if (listenSignal)
         pthread_cond_signal(&condListen);
@@ -178,7 +179,7 @@ void getargs(int *port, int argc, char *argv[])
 
 
 int main(int argc, char *argv[]) {
-    int listenfd, port, clientlen, numRunning, numWaiting, max;
+    int listenfd, port, clientlen;
     struct sockaddr_in clientaddr;
     Task task;
 
@@ -196,24 +197,22 @@ int main(int argc, char *argv[]) {
         task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
 
         pthread_mutex_lock(&mutexQueue);
-        numRunning = queueTasks.sizeRunning;
-        numWaiting = queueTasks.sizeWaiting;
-        max = queueTasks.maxTasks;
 
-        if (strcmp(queueTasks.typeOfOperation, "dynamic") == 0 && numWaiting + numRunning < max
-                && numWaiting + numRunning == queueTasks.dynamicMax)
+        if (strcmp(queueTasks.typeOfOperation, "dynamic") == 0 && queueTasks.sizeWaiting + queueTasks.sizeRunning < queueTasks.maxTasks
+                && queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.dynamicMax)
         {    // more than original count but less than allowed dynamically
             queueTasks.dynamicMax++;
             pthread_mutex_unlock(&mutexQueue);
             close(task.taskFd);
             task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         }
-        else if ((strcmp(queueTasks.typeOfOperation, "block") == 0 || strcmp(queueTasks.typeOfOperation, "bf") == 0) && numWaiting + numRunning == max)
+        else if ((strcmp(queueTasks.typeOfOperation, "block") == 0 || strcmp(queueTasks.typeOfOperation, "bf") == 0)
+                && queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
         {
-            while (queueTasks.sizeWaiting + queueTasks.sizeRunning == max)
+            while (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
                 pthread_cond_wait(&condListen, &mutexQueue);
             pthread_mutex_unlock(&mutexQueue);
-            if (strcmp(queueTasks.typeOfOperation, "bf") == 0) {
+            if (strcmp(queueTasks.typeOfOperation, "bf") == 0) {  ////////////////////////////// what if the queue isnt empty?
                 close(task.taskFd);
                 task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
             }
@@ -221,10 +220,12 @@ int main(int argc, char *argv[]) {
         else        //can add the task
             pthread_mutex_unlock(&mutexQueue);
 
-        gettimeofday(&task.arrival, NULL);
-        submitTask(task);
         if (queueSignal)
             pthread_cond_signal(&condQueue);
+
+        gettimeofday(&task.arrival, NULL);
+        submitTask(task);
+
     }
 
     // clean before exit main
