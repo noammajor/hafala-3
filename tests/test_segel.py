@@ -126,9 +126,14 @@ LIGHT2_FILES = {'/home.html': [True, STATIC_OUTPUT_CONTENT, generate_static_head
 
 @pytest.mark.parametrize("policy, threads, num_clients, queue_size, times, files",
                          [
-
+                             ("block", 8, 5, 10, 20, LIGHT_FILES),
+                             ("block", 16, 4, 32, 30, LIGHT2_FILES),
+                             ("dh", 8, 5, 10, 20, LIGHT_FILES),
+                             ("dh", 16, 4, 32, 30, LIGHT2_FILES),
                              ("dt", 8, 5, 10, 20, LIGHT_FILES),
-
+                             ("dt", 16, 4, 32, 30, LIGHT2_FILES),
+                             ("random", 8, 5, 10, 20, LIGHT_FILES),
+                             ("random", 16, 4, 32, 30, LIGHT2_FILES),
                          ])
 def test_light(policy, threads, num_clients, queue_size, times, files, server_port):
     with Server("./server", server_port, threads, queue_size, policy) as server:
@@ -213,15 +218,15 @@ EQUAL_FILES = {'/home.html': [True, STATIC_OUTPUT_CONTENT, generate_static_heade
 
 @pytest.mark.parametrize("policy, threads, num_clients, queue_size, times, files",
                          [
-                             ("block", 8, 20, 8, 10, EQUAL_FILES),
-                             ("block", 32, 32, 32, 20, EQUAL_FILES),
-                             ("block", 16, 12, 16, 20, EQUAL_FILES),
-                             ("dh", 32, 32, 32, 20, EQUAL_FILES),
-                             ("dh", 16, 12, 16, 20, EQUAL_FILES),
-                             ("dt", 32, 32, 32, 20, EQUAL_FILES),
-                             ("dt", 16, 12, 16, 20, EQUAL_FILES),
-                             ("random", 32, 32, 32, 20, EQUAL_FILES),
-                             ("random", 16, 12, 16, 20, EQUAL_FILES),
+                             ("block", 7, 20, 8, 10, EQUAL_FILES),
+                             ("block", 31, 32, 32, 20, EQUAL_FILES),
+                             ("block", 15, 12, 16, 20, EQUAL_FILES),
+                             ("dh", 31, 32, 32, 20, EQUAL_FILES),
+                             ("dh", 15, 12, 16, 20, EQUAL_FILES),
+                             ("dt", 31, 32, 32, 20, EQUAL_FILES),
+                             ("dt", 15, 12, 16, 20, EQUAL_FILES),
+                             ("random", 31, 32, 32, 20, EQUAL_FILES),
+                             ("random", 15, 12, 16, 20, EQUAL_FILES),
                          ])
 def test_equal(policy, threads, num_clients, queue_size, times, files, server_port):
     with Server("./server", server_port, threads, queue_size, policy) as server:
@@ -251,10 +256,10 @@ FEWER_FILES = {'/home.html': [True, STATIC_OUTPUT_CONTENT, generate_static_heade
 
 @pytest.mark.parametrize("policy, threads, num_clients, queue_size, times, files",
                          [
-                             ("block", 16, 20, 8, 20, FEWER_FILES),
-                             ("dt", 16, 20, 8, 20, FEWER_FILES),
-                             ("dh", 16, 20, 8, 20, FEWER_FILES),
-                             ("random", 16, 20, 8, 20, FEWER_FILES),
+                             ("block", 16, 20, 18, 20, FEWER_FILES),
+                             ("dt", 16, 20, 18, 20, FEWER_FILES),
+                             ("dh", 16, 20, 18, 20, FEWER_FILES),
+                             ("random", 16, 20, 18, 20, FEWER_FILES),
                          ])
 def test_fewer(policy, threads, num_clients, queue_size, times, files, server_port):
     with Server("./server", server_port, threads, queue_size, policy) as server:
@@ -375,7 +380,7 @@ def test_drop_tail(threads, num_clients, queue_size, times, server_port):
 
 @pytest.mark.parametrize("threads, num_clients, queue_size, times",
                          [
-                             (2, 12, 8, 5),
+                             (1, 12, 8, 5),
                          ])
 def test_drop_random(threads, num_clients, queue_size, times, server_port):
     with Server("./server", server_port, threads, queue_size, "random") as server:

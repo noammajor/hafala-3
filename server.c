@@ -6,7 +6,6 @@
 typedef struct QueueTasks
 {
     Task* QueueWaiting;
-    Task* QueueRunning;
     int sizeWaiting;
     int sizeRunning;
     int maxTasks;
@@ -52,9 +51,9 @@ void submitTask(Task task) {
         {
             srand(time(NULL));
             int num = (queueTasks.sizeWaiting + 1)/2;
-            for (int i = 0 ; i <= num; ++i)
+            for (int i = 0 ; i < num; i++)
             {
-                int randomNumber = rand() % (queueTasks.maxTasks - i);
+                int randomNumber = rand() % (queueTasks.sizeWaiting);
                 remove_Queue(randomNumber);
             }
         }
@@ -78,17 +77,21 @@ void submitTask(Task task) {
 
 void* startThread(void* args) {
     int* index = (int*)args;
+    Task task;
     while (1) {
         pthread_mutex_lock(&mutexQueue);
         while (queueTasks.sizeWaiting == 0) {
             pthread_cond_wait(&condQueue, &mutexQueue);
         }
 
-        Task task = queueTasks.QueueWaiting[0];
+        task = queueTasks.QueueWaiting[0];
+        struct timeval time_of_handling;
+        gettimeofday(&time_of_handling, NULL);
+        timersub(&time_of_handling, &task.arrival, &task.BeginOperation);
+
         for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
             queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
-        queueTasks.QueueRunning[*index] = task;
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
 
@@ -98,10 +101,6 @@ void* startThread(void* args) {
             pthread_cond_signal(&condListen);
 
         pthread_cond_signal(&condQueue);
-
-        struct timeval time_of_handling;
-        gettimeofday(&time_of_handling, NULL);
-        timersub(&time_of_handling, &task.arrival, &task.BeginOperation);
 
         requestHandle(task, index, &statsThreads);
         close(task.taskFd);
@@ -143,7 +142,7 @@ void getargs(int *port, int argc, char *argv[])
     *port = atoi(argv[1]);
     int size = atoi(argv[2]); // size = number of threads
     ThreadPool = malloc(sizeof(pthread_t)*size);
-    for (int i = 0; i < size; i++)
+    for (int i = 0 ; i < size ; i++)
     {
         int* num = malloc(sizeof(int));
         *num = i;
@@ -161,16 +160,16 @@ void getargs(int *port, int argc, char *argv[])
         statsThreads.StaticRequests[i]= 0;
         statsThreads.Requests[i] = 0;
     }
+
+    queueTasks.dynamicMax = 0;
     if (argc > 5)
     {
         queueTasks.dynamicMax = queueTasks.maxTasks;
         queueTasks.maxTasks = atoi(argv[5]);;
     }
 
-    queueTasks.QueueRunning = malloc(sizeof (Task)*size);
     queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
     queueTasks.typeOfOperation = argv[4];
-    queueTasks.dynamicMax = 0;
 
     queueTasks.sizeWaiting = 0;
     queueTasks.sizeRunning = 0;
@@ -184,15 +183,17 @@ int main(int argc, char *argv[]) {
 
     listenSignal = 1;
 
-    getargs(&port, argc, argv);
     pthread_mutex_init(&mutexQueue, NULL);
     pthread_cond_init(&condQueue, NULL);
     pthread_cond_init(&condListen, NULL);
+    getargs(&port, argc, argv);
+
     listenfd = Open_listenfd(port);
     clientlen = sizeof(clientaddr);
 
     while (1) {
         task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
+        gettimeofday(&task.arrival, NULL);
 
         pthread_mutex_lock(&mutexQueue);
 
@@ -201,6 +202,7 @@ int main(int argc, char *argv[]) {
         {    // more than original count but less than allowed dynamically
             queueTasks.dynamicMax++;
             pthread_mutex_unlock(&mutexQueue);
+            pthread_cond_signal(&condQueue);
             close(task.taskFd);
             task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
         }
@@ -210,6 +212,7 @@ int main(int argc, char *argv[]) {
             while (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
                 pthread_cond_wait(&condListen, &mutexQueue);
             pthread_mutex_unlock(&mutexQueue);
+            pthread_cond_signal(&condQueue);
             if (strcmp(queueTasks.typeOfOperation, "bf") == 0) {  ////////////////////////////// what if the queue isnt empty?
                 close(task.taskFd);
                 task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
@@ -220,20 +223,10 @@ int main(int argc, char *argv[]) {
 
         pthread_cond_signal(&condQueue);
 
-        gettimeofday(&task.arrival, NULL);
         submitTask(task);
 
     }
 
-    // clean before exit main
-    for (int i = 0 ; i < atoi(argv[2]) ; i++) {
-        if (pthread_join(ThreadPool[i], NULL) != 0) {
-            perror("Failed to join threads");
-        }
-    }
-    pthread_mutex_destroy(&mutexQueue);
-    pthread_cond_destroy(&condQueue);
-    pthread_cond_destroy(&condListen);
     return 0;
 }
 
