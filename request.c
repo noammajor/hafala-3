@@ -196,7 +196,7 @@ void requestServeStatic(Task task, char *filename, int filesize, int* index, str
 void requestHandle(Task task, int* index, struct Statistics* stats)
 {
    int fd = task.taskFd;
-   stats->Requests[*index]++;          ///////////////////////////////////////////////////////////////////////
+   stats->Requests[*index]++;
    int is_static;
    struct stat sbuf;
    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
@@ -226,14 +226,14 @@ void requestHandle(Task task, int* index, struct Statistics* stats)
          requestError(task, filename, "403", "Forbidden", "OS-HW3 Server could not read this file", index, stats);
          return;
       }
-      stats->StaticRequests[*index]++;  /////////////////////////////////////////////////////////////////////
+      stats->StaticRequests[*index]++;
       requestServeStatic(task, filename, sbuf.st_size, index, stats);
    } else {
       if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
          requestError(task, filename, "403", "Forbidden", "OS-HW3 Server could not run this CGI program", index, stats);
          return;
       }
-      stats->DynamicRequests[*index]++;  //////////////////////////////////////////////////////////////////////
+      stats->DynamicRequests[*index]++;
       requestServeDynamic(task, filename, cgiargs, index, stats);
    }
 }

@@ -22,7 +22,6 @@ pthread_mutex_t mutexQueue;
 pthread_cond_t condQueue;   // if the first task arrived
 pthread_cond_t condListen;      // if receiving new tasks is allowed
 
-int queueSignal;
 int listenSignal;
 
 void Add_Task(Task task)
@@ -62,6 +61,7 @@ void submitTask(Task task) {
         else // dynamic or dt
         {
             pthread_mutex_unlock(&mutexQueue);
+            pthread_cond_signal(&condQueue);
             close(task.taskFd);
             return;
         }
@@ -69,7 +69,6 @@ void submitTask(Task task) {
     Add_Task(task);
     if (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
         listenSignal = 0;
-    queueSignal = 1;
     pthread_mutex_unlock(&mutexQueue);
 
     pthread_cond_signal(&condQueue);
@@ -89,39 +88,36 @@ void* startThread(void* args) {
         for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
             queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
-        queueTasks.QueueRunning[queueTasks.sizeRunning] = task;
+        queueTasks.QueueRunning[*index] = task;
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
-        if (queueTasks.sizeWaiting == 0)
-            queueSignal = 0;
+
         pthread_mutex_unlock(&mutexQueue);
+
         if (listenSignal)
             pthread_cond_signal(&condListen);
-        if (queueSignal)
-            pthread_cond_signal(&condQueue);
 
-        gettimeofday(&task.BeginOperation, NULL);
+        pthread_cond_signal(&condQueue);
+
+        struct timeval time_of_handling;
+        gettimeofday(&time_of_handling, NULL);
+        timersub(&time_of_handling, &task.arrival, &task.BeginOperation);
+
         requestHandle(task, index, &statsThreads);
         close(task.taskFd);
 
         pthread_mutex_lock(&mutexQueue);
-        int i = 0;
-        while (queueTasks.QueueRunning[i].taskFd != task.taskFd && i < queueTasks.sizeRunning)      //search the task  in the running queue
-            i++;
-        for ( ; i < queueTasks.sizeRunning - 1 ; i++) {
-            queueTasks.QueueRunning[i] = queueTasks.QueueRunning[i + 1];
-        }
         queueTasks.sizeRunning--;
         if (strcmp(queueTasks.typeOfOperation, "block") == 0 ||
             (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0))
                 listenSignal = 1;
-        if (queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0)
-            queueSignal = 0;
+
         pthread_mutex_unlock(&mutexQueue);
+
         if (listenSignal)
             pthread_cond_signal(&condListen);
-        if (queueSignal)
-            pthread_cond_signal(&condQueue);
+
+        pthread_cond_signal(&condQueue);
     }
 }
 
@@ -145,7 +141,7 @@ void getargs(int *port, int argc, char *argv[])
         exit(1);
     }
     *port = atoi(argv[1]);
-    int size = atoi(argv[2]);
+    int size = atoi(argv[2]); // size = number of threads
     ThreadPool = malloc(sizeof(pthread_t)*size);
     for (int i = 0; i < size; i++)
     {
@@ -164,15 +160,18 @@ void getargs(int *port, int argc, char *argv[])
         statsThreads.DynamicRequests[i] = 0;
         statsThreads.StaticRequests[i]= 0;
         statsThreads.Requests[i] = 0;
-   }
-    queueTasks.QueueRunning = malloc(sizeof (Task)*queueTasks.maxTasks);       ///////////what if maxTask < num of threads?
-    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
-    queueTasks.typeOfOperation = argv[4];
-    queueTasks.dynamicMax = 0;
-    if (argc > 5) {
+    }
+    if (argc > 5)
+    {
         queueTasks.dynamicMax = queueTasks.maxTasks;
         queueTasks.maxTasks = atoi(argv[5]);;
     }
+
+    queueTasks.QueueRunning = malloc(sizeof (Task)*size);
+    queueTasks.QueueWaiting = malloc(sizeof (Task)*queueTasks.maxTasks);
+    queueTasks.typeOfOperation = argv[4];
+    queueTasks.dynamicMax = 0;
+
     queueTasks.sizeWaiting = 0;
     queueTasks.sizeRunning = 0;
 }
@@ -183,7 +182,6 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in clientaddr;
     Task task;
 
-    queueSignal = 0;
     listenSignal = 1;
 
     getargs(&port, argc, argv);
@@ -220,8 +218,7 @@ int main(int argc, char *argv[]) {
         else        //can add the task
             pthread_mutex_unlock(&mutexQueue);
 
-        if (queueSignal)
-            pthread_cond_signal(&condQueue);
+        pthread_cond_signal(&condQueue);
 
         gettimeofday(&task.arrival, NULL);
         submitTask(task);
