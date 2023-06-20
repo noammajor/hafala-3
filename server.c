@@ -66,13 +66,8 @@ void submitTask(Task task) {
         }
     }
     Add_Task(task);
-    if (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
-        listenSignal = 0;
     pthread_mutex_unlock(&mutexQueue);
-
     pthread_cond_signal(&condQueue);
-    if (listenSignal)
-        pthread_cond_signal(&condListen);
 }
 
 void* startThread(void* args) {
@@ -92,6 +87,7 @@ void* startThread(void* args) {
         for (int i = 0 ; i < queueTasks.sizeWaiting - 1 ; i++) {
             queueTasks.QueueWaiting[i] = queueTasks.QueueWaiting[i + 1];
         }
+
         queueTasks.sizeWaiting--;
         queueTasks.sizeRunning++;
 
@@ -100,7 +96,7 @@ void* startThread(void* args) {
         if (listenSignal)
             pthread_cond_signal(&condListen);
 
-        pthread_cond_signal(&condQueue);
+        //pthread_cond_signal(&condQueue);
 
         requestHandle(task, index, &statsThreads);
         close(task.taskFd);
@@ -119,7 +115,6 @@ void* startThread(void* args) {
         pthread_cond_signal(&condQueue);
     }
 }
-
 
 
 // 
@@ -141,15 +136,7 @@ void getargs(int *port, int argc, char *argv[])
     }
     *port = atoi(argv[1]);
     int size = atoi(argv[2]); // size = number of threads
-    ThreadPool = malloc(sizeof(pthread_t)*size);
-    for (int i = 0 ; i < size ; i++)
-    {
-        int* num = malloc(sizeof(int));
-        *num = i;
-        if (pthread_create(&ThreadPool[i], NULL, &startThread, num) != 0) {
-            perror("Failed to create the thread");
-        }
-    }
+
     queueTasks.maxTasks = atoi(argv[3]);
     statsThreads.DynamicRequests = malloc(sizeof(int)*size);
     statsThreads.StaticRequests = malloc(sizeof(int)*size);
@@ -173,6 +160,16 @@ void getargs(int *port, int argc, char *argv[])
 
     queueTasks.sizeWaiting = 0;
     queueTasks.sizeRunning = 0;
+
+    ThreadPool = malloc(sizeof(pthread_t)*size);
+    for (int i = 0 ; i < size ; i++)
+    {
+        int* num = malloc(sizeof(int));
+        *num = i;
+        if (pthread_create(&ThreadPool[i], NULL, &startThread, num) != 0) {
+            perror("Failed to create the thread");
+        }
+    }
 }
 
 
@@ -211,20 +208,23 @@ int main(int argc, char *argv[]) {
         {
             while (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
                 pthread_cond_wait(&condListen, &mutexQueue);
-            pthread_mutex_unlock(&mutexQueue);
-            pthread_cond_signal(&condQueue);
-            if (strcmp(queueTasks.typeOfOperation, "bf") == 0) {  ////////////////////////////// what if the queue isnt empty?
+            if (strcmp(queueTasks.typeOfOperation, "bf") == 0 ) {
+                while (queueTasks.sizeWaiting != 0 || queueTasks.sizeRunning != 0)
+                    pthread_cond_wait(&condListen, &mutexQueue);
+                pthread_mutex_unlock(&mutexQueue);
                 close(task.taskFd);
                 task.taskFd = Accept(listenfd, (SA *) &clientaddr, (socklen_t * ) & clientlen);
             }
+            else {
+                pthread_mutex_unlock(&mutexQueue);
+            }
+
         }
         else        //can add the task
             pthread_mutex_unlock(&mutexQueue);
 
-        pthread_cond_signal(&condQueue);
-
         submitTask(task);
-
+        pthread_cond_signal(&condQueue);
     }
 
     return 0;
