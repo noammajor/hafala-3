@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
   
   clientSend(clientfd, filename);
   clientPrint(clientfd);
-    
+
   Close(clientfd);
 
   exit(0);

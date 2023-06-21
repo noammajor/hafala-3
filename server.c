@@ -103,13 +103,12 @@ void* startThread(void* args) {
 
         pthread_mutex_lock(&mutexQueue);
         queueTasks.sizeRunning--;
-        if (strcmp(queueTasks.typeOfOperation, "block") == 0 ||
-            (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0))
+        if (strcmp(queueTasks.typeOfOperation, "bf") == 0 && queueTasks.sizeWaiting == 0 && queueTasks.sizeRunning == 0)
                 listenSignal = 1;
 
         pthread_mutex_unlock(&mutexQueue);
-
-        pthread_cond_signal(&condListen);
+        if (listenSignal)
+            pthread_cond_signal(&condListen);
 
         //pthread_cond_signal(&condQueue);
     }
@@ -208,6 +207,8 @@ int main(int argc, char *argv[]) {
             while (queueTasks.sizeWaiting + queueTasks.sizeRunning == queueTasks.maxTasks)
                 pthread_cond_wait(&condListen, &mutexQueue);
             if (strcmp(queueTasks.typeOfOperation, "bf") == 0 ) {
+                if (queueTasks.sizeWaiting != 0 || queueTasks.sizeRunning != 0)
+                    listenSignal = 0;
                 while (queueTasks.sizeWaiting != 0 || queueTasks.sizeRunning != 0)
                     pthread_cond_wait(&condListen, &mutexQueue);
                 pthread_mutex_unlock(&mutexQueue);
