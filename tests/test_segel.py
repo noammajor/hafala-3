@@ -134,6 +134,8 @@ LIGHT2_FILES = {'/home.html': [True, STATIC_OUTPUT_CONTENT, generate_static_head
                              ("dt", 16, 4, 32, 30, LIGHT2_FILES),
                              ("random", 8, 5, 10, 20, LIGHT_FILES),
                              ("random", 16, 4, 32, 30, LIGHT2_FILES),
+                             ("bf", 8, 5, 10, 20, LIGHT_FILES),
+                             ("bf", 16, 4, 32, 30, LIGHT2_FILES),
                          ])
 def test_light(policy, threads, num_clients, queue_size, times, files, server_port):
     with Server("./server", server_port, threads, queue_size, policy) as server:
@@ -189,6 +191,10 @@ LOCKS4_FILES = {'/output.cgi?0.01': [True, DYNAMIC_OUTPUT_CONTENT.format(seconds
                              ("random", 32, 40, 64, 10, LOCKS2_FILES),
                              ("random", 64, 50, 128, 6, LOCKS3_FILES),
                              ("random", 25, 20, 27, 20, LOCKS4_FILES),
+                             ("bf", 8, 20, 16, 20, LOCKS_FILES),
+                             ("bf", 32, 40, 64, 10, LOCKS2_FILES),
+                             ("bf", 64, 50, 128, 6, LOCKS3_FILES),
+                             ("bf", 25, 20, 27, 20, LOCKS4_FILES),
                          ])
 def test_locks(policy, threads, num_clients, queue_size, times, files, server_port):
     with Server("./server", server_port, threads, queue_size, policy) as server:

@@ -93,8 +93,8 @@ void* startThread(void* args) {
 
         pthread_mutex_unlock(&mutexQueue);
 
-        if (listenSignal)
-            pthread_cond_signal(&condListen);
+       /* if (listenSignal)
+            pthread_cond_signal(&condListen);*/
 
         //pthread_cond_signal(&condQueue);
 
@@ -109,10 +109,9 @@ void* startThread(void* args) {
 
         pthread_mutex_unlock(&mutexQueue);
 
-        if (listenSignal)
-            pthread_cond_signal(&condListen);
+        pthread_cond_signal(&condListen);
 
-        pthread_cond_signal(&condQueue);
+        //pthread_cond_signal(&condQueue);
     }
 }
 
